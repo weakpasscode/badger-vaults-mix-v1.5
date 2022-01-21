@@ -1,5 +1,4 @@
 pragma solidity 0.6.12;
-pragma abicoder v2;
 
 
 interface IV2SwapRouter {

@@ -4,10 +4,12 @@ pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
 import {BaseStrategy} from "@badger-finance/BaseStrategy.sol";
+import "@openzeppelin-contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 
-import {IChefIncentiveController} from "../interfaces/geist/IChefincentiveController"
-import {IV2SwapRouter} from "../interfaces/uniswap/Router.sol"
+import {IChefIncentiveController} from "../interfaces/geist/IChefIncentiveController.sol";
+import {ILendingPool} from "../interfaces/geist/ILendingPool.sol";
 
+import {IV2SwapRouter} from "../interfaces/uniswap/Router.sol";
 
 contract MyStrategy is BaseStrategy {
     // address public want; // Inherited from BaseStrategy
@@ -17,9 +19,8 @@ contract MyStrategy is BaseStrategy {
     address public constant BADGER = 0x3472A5A71965499acd81997a54BBA8D852C6E53d;
     address public constant LENDING_POOL = 0x9FAD24f572045c7869117160A571B2e50b10d068;
 
-    address public constant GEIST_TOKEN = 0xd8321aa83fb0a4ecd6348d4577431310a6e0814d;
-    address public constant ROUTER = 0xf491e7b69e4244ad4002bc14e878a34207e38c29; //spookyswap router
-
+    address public constant GEIST_TOKEN = 0xd8321AA83Fb0a4ECd6348D4577431310A6E0814d;
+    address public constant ROUTER = 0xF491e7B69E4244ad4002BC14e878a34207E38c29; //spookyswap router
 
     // geist token 0xd8321aa83fb0a4ecd6348d4577431310a6e0814d
 
@@ -27,7 +28,7 @@ contract MyStrategy is BaseStrategy {
     // wbtc 0x321162Cd933E2Be498Cd2267a90534A804051b11
     // spooky router 0xf491e7b69e4244ad4002bc14e878a34207e38c29
 
-    address public constant INCENTIVES_CONTROLLER = 0x297fddc5c33ef988dd03bd13e162ae084ea1fe57;
+    address public constant INCENTIVES_CONTROLLER = 0x297FddC5c33Ef988dd03bd13e162aE084ea1fE57;
 
     address public gBTC; // Token we provide liquidity with
     address public reward; // Token we farm and swap to want / aToken
@@ -35,7 +36,7 @@ contract MyStrategy is BaseStrategy {
     /// @dev Initialize the Strategy with security settings as well as tokens
     /// @notice Proxies will set any non constant variable you declare as default value
     /// @dev add any extra changeable variable at end of initializer as shown
-    function initialize(address _vault, address[1] memory _wantConfig) public initializer {
+    function initialize(address _vault, address[3] memory _wantConfig) public initializer {
         __BaseStrategy_init(_vault);
         /// @dev Add config here
         want = _wantConfig[0];
@@ -97,39 +98,32 @@ contract MyStrategy is BaseStrategy {
     }
 
     function _harvest() internal override returns (TokenAmount[] memory harvested) {
-       
         uint256 _before = IERC20Upgradeable(want).balanceOf(address(this));
 
         harvested = new TokenAmount[](2);
         harvested[0] = TokenAmount(want, 0);
         harvested[1] = TokenAmount(BADGER, 0);
 
-         IChefIncentiveController(INCENTIVES_CONTROLLER).claim(
-            assets,
-            type(uint256).max,
-            address(this)
-        );
+        address[] memory tokensToClaim = new address[](1);
+        tokensToClaim[0] = GEIST_TOKEN;
 
-         uint256 rewardsAmount =
-            IERC20Upgradeable(reward).balanceOf(address(this));
-            if (rewardsAmount == 0) {
-            return 0;
+        IChefIncentiveController(INCENTIVES_CONTROLLER).claim(address(this), tokensToClaim);
+
+        uint256 rewardsAmount = IERC20Upgradeable(reward).balanceOf(address(this));
+        if (rewardsAmount == 0) {
+            return harvested;
         }
 
         // Swap Rewards in Spookyswap
 
-         bytes memory path =
-            abi.encodePacked(
-                GEIST_TOKEN,
-                uint24(10000),
-                want
-            );
+        address[] memory path = new address[](2);
+        path[0] = GEIST_TOKEN;
+        path[1] = want;
 
         // TODO: fix max amount chances of FR
-        ISwapRouter(ROUTER).swapExactTokensForTokens(rewardsAmount,0,path, address(this));
+        IV2SwapRouter(ROUTER).swapExactTokensForTokens(rewardsAmount, 0, path, address(this));
 
-   uint256 earned =
-            IERC20Upgradeable(want).balanceOf(address(this)).sub(_before);
+        uint256 earned = IERC20Upgradeable(want).balanceOf(address(this)).sub(_before);
 
         // keep this to get paid!
         _reportToVault(earned);
