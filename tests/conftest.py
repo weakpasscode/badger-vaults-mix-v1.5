@@ -9,6 +9,8 @@ from brownie import (
 from _setup.config import (
     WANT, 
     WHALE_ADDRESS,
+    GBTC,
+    GEIST_TOKEN,
 
     PERFORMANCE_FEE_GOVERNANCE,
     PERFORMANCE_FEE_STRATEGIST,
@@ -45,6 +47,20 @@ def want(deployer):
     WHALE = accounts.at(WHALE_ADDRESS, force=True) ## Address with tons of token
 
     token.transfer(deployer, token.balanceOf(WHALE), {"from": WHALE})
+    return token
+
+@pytest.fixture
+def gbtc(deployer):
+
+    TOKEN_ADDRESS = GBTC
+    token = interface.IERC20Detailed(TOKEN_ADDRESS)
+    return token
+
+@pytest.fixture
+def geist(deployer):
+
+    TOKEN_ADDRESS = GEIST_TOKEN
+    token = interface.IERC20Detailed(TOKEN_ADDRESS)
     return token
 
 
@@ -144,6 +160,7 @@ def deployed(want, deployer, strategist, keeper, guardian, governance, proxyAdmi
 @pytest.fixture
 def vault(deployed):
     return deployed.vault
+
 
 
 @pytest.fixture

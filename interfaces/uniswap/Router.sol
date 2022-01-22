@@ -7,7 +7,8 @@ interface IV2SwapRouter {
         uint256 amountIn,
         uint256 amountOutMin,
         address[] calldata path,
-        address to
+        address to,
+        uint deadline
     ) external payable returns (uint256 amountOut);
 
    
@@ -15,6 +16,7 @@ interface IV2SwapRouter {
         uint256 amountOut,
         uint256 amountInMax,
         address[] calldata path,
-        address to
+        address to,
+        uint deadline
     ) external payable returns (uint256 amountIn);
 }

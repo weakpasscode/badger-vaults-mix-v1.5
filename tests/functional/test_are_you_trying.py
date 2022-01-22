@@ -2,7 +2,7 @@ from brownie import *
 from helpers.constants import MaxUint256
 
 
-def test_are_you_trying(deployer, vault, strategy, want, governance):
+def test_are_you_trying(deployer, vault, strategy, want, governance, gbtc):
     """
     Verifies that you set up the Strategy properly
     """
@@ -36,16 +36,28 @@ def test_are_you_trying(deployer, vault, strategy, want, governance):
     # Use this if it should invest all
     # assert want.balanceOf(strategy) == 0
 
+    wantBefore = want.balanceOf(strategy) 
+
+
     # Change to this if the strat is supposed to hodl and do nothing
     # assert strategy.balanceOf(want) = depositAmount
 
     ## TEST 2: Is the Harvest profitable?
+    vaultBalanceBefore = gbtc.balanceOf(strategy)
     harvest = strategy.harvest({"from": governance})
-    event = harvest.events["Harvested"]
+    vaultBalanceAfter = gbtc.balanceOf(strategy) - vaultBalanceBefore
+    assert vaultBalanceAfter > 0
+
+    wantAfter = want.balanceOf(strategy) 
+
+
+    assert wantAfter > wantBefore
+
+    # event = harvest.events["Harvested"]
     # If it doesn't print, we don't want it
-    assert event["amount"] > 0
+    # assert event["amount"] > 0
 
     ## TEST 3: Does the strategy emit anything?
-    event = harvest.events["TreeDistribution"]
-    assert event["token"] == "TOKEN" ## Add token you emit
-    assert event["amount"] > 0 ## We want it to emit something
+    #event = harvest.events["TreeDistribution"]
+    # assert event["token"] == "TOKEN" ## Add token you emit
+    # assert event["amount"] > 0 ## We want it to emit something

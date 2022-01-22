@@ -7,3 +7,4 @@ interface IChefIncentiveController {
     function claim(address _user, address[] calldata _tokens) external ;
 
 }
+
