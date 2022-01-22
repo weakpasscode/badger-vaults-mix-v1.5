@@ -1,8 +1,13 @@
 ## Token deposited in the vault
 WANT = "0x321162Cd933E2Be498Cd2267a90534A804051b11"
+GBTC = "0x38aCa5484B8603373Acc6961Ecd57a6a594510A3"
+
+GEIST_TOKEN = "0xd8321AA83Fb0a4ECd6348D4577431310A6E0814d"
+
+
 
 ## Account that has a lot of want (we will "borrow it" for testing)
-WHALE_ADDRESS = "0x321162Cd933E2Be498Cd2267a90534A804051b11"
+WHALE_ADDRESS = "0x38aCa5484B8603373Acc6961Ecd57a6a594510A3"
 
 ## Address for Badger Registry, used to fill in default addresses
 ## See: https://github.com/Badger-Finance/badger-registry

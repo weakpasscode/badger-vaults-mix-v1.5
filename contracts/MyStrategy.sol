@@ -160,11 +160,10 @@ contract MyStrategy is BaseStrategy {
     /// @notice Used for offChain APY and Harvest Health monitoring
     function balanceOfRewards() external view override returns (TokenAmount[] memory rewards) {
         // Rewards are 0
-        rewards = new TokenAmount[](2);
-        rewards[0] = TokenAmount(want, 0);
-        rewards[1] = TokenAmount(BADGER, 0);
-        rewards[1] = TokenAmount(GBTC, 0);
-        rewards[1] = TokenAmount(reward, 0);
+        rewards = new TokenAmount[](3);
+        rewards[0] = TokenAmount(want, IERC20Upgradeable(want).balanceOf(address(this)));
+        rewards[1] = TokenAmount(GBTC, IERC20Upgradeable(want).balanceOf(address(GBTC)));
+        rewards[2] = TokenAmount(GEIST_TOKEN, IERC20Upgradeable(GEIST_TOKEN).balanceOf(address(this)));
         return rewards;
     }
 }
