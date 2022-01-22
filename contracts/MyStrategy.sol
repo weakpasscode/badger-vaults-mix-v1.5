@@ -11,6 +11,8 @@ import {ILendingPool} from "../interfaces/geist/ILendingPool.sol";
 
 import {IV2SwapRouter} from "../interfaces/uniswap/Router.sol";
 
+import {IMultiFeeDistribution} from "../interfaces/geist/IFeeDistributor.sol";
+
 contract MyStrategy is BaseStrategy {
     // address public want; // Inherited from BaseStrategy
     // address public lpComponent; // Token that represents ownership in a pool, not always used
@@ -19,40 +21,40 @@ contract MyStrategy is BaseStrategy {
     address public constant BADGER = 0x3472A5A71965499acd81997a54BBA8D852C6E53d;
     address public constant LENDING_POOL = 0x9FAD24f572045c7869117160A571B2e50b10d068;
 
-    address public constant GEIST_TOKEN = 0xd8321AA83Fb0a4ECd6348D4577431310A6E0814d;
+    address public constant GEIST_TOKEN = 0xd8321AA83Fb0a4ECd6348D4577431310A6E0814d; // Token we farm
     address public constant ROUTER = 0xF491e7B69E4244ad4002BC14e878a34207E38c29; //spookyswap router
 
-    // geist token 0xd8321aa83fb0a4ecd6348d4577431310a6e0814d
+    address public constant WFTM = 0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83;
+    address public constant GBTC = 0x38aCa5484B8603373Acc6961Ecd57a6a594510A3;
+    address public constant GEIST_FEE_DISTRUBUTOR = 0x49c93a95dbcc9A6A4D8f77E59c038ce5020e82f8;
 
-    //gbtc 0x38aca5484b8603373acc6961ecd57a6a594510a3
+    // https://ftmscan.com/address/0x49c93a95dbcc9A6A4D8f77E59c038ce5020e82f8
+
     // wbtc 0x321162Cd933E2Be498Cd2267a90534A804051b11
-    // spooky router 0xf491e7b69e4244ad4002bc14e878a34207e38c29
 
     address public constant INCENTIVES_CONTROLLER = 0x297FddC5c33Ef988dd03bd13e162aE084ea1fE57;
 
-    address public gBTC; // Token we provide liquidity with
     address public reward; // Token we farm and swap to want / aToken
 
     /// @dev Initialize the Strategy with security settings as well as tokens
     /// @notice Proxies will set any non constant variable you declare as default value
     /// @dev add any extra changeable variable at end of initializer as shown
-    function initialize(address _vault, address[3] memory _wantConfig) public initializer {
+    function initialize(address _vault, address[1] memory _wantConfig) public initializer {
         __BaseStrategy_init(_vault);
         /// @dev Add config here
         want = _wantConfig[0];
-        gBTC = _wantConfig[1];
-        reward = _wantConfig[2];
 
         // If you need to seit new values that are not constants, set them like so
         // stakingContract = 0x79ba8b76F61Db3e7D994f7E384ba8f7870A043b7;
 
         // If you need to do one-off approvals do them here like so
         IERC20Upgradeable(want).safeApprove(LENDING_POOL, type(uint256).max);
-        IERC20Upgradeable(gBTC).safeApprove(LENDING_POOL, type(uint256).max);
+        IERC20Upgradeable(GBTC).safeApprove(LENDING_POOL, type(uint256).max);
 
-        /// @dev Allowance for Uniswap
-        IERC20Upgradeable(reward).safeApprove(ROUTER, type(uint256).max);
+        /// @dev Allowance for spookyswap
+        IERC20Upgradeable(GBTC).safeApprove(ROUTER, type(uint256).max);
         IERC20Upgradeable(GEIST_TOKEN).safeApprove(ROUTER, type(uint256).max);
+        IERC20Upgradeable(want).safeApprove(ROUTER, type(uint256).max);
     }
 
     /// @dev Return the name of the strategy
@@ -100,33 +102,40 @@ contract MyStrategy is BaseStrategy {
     function _harvest() internal override returns (TokenAmount[] memory harvested) {
         uint256 _before = IERC20Upgradeable(want).balanceOf(address(this));
 
-        harvested = new TokenAmount[](2);
+        harvested = new TokenAmount[](1);
         harvested[0] = TokenAmount(want, 0);
-        harvested[1] = TokenAmount(BADGER, 0);
 
         address[] memory tokensToClaim = new address[](1);
-        tokensToClaim[0] = GEIST_TOKEN;
+        tokensToClaim[0] = GBTC;
+
+        uint256 poolGBTCBalance = balanceOfPool();
 
         IChefIncentiveController(INCENTIVES_CONTROLLER).claim(address(this), tokensToClaim);
 
-        uint256 rewardsAmount = IERC20Upgradeable(reward).balanceOf(address(this));
+        uint256 poolGBTCBalanceAfterAfterClaim = balanceOfPool();
+
+        uint256 earned = poolGBTCBalance.sub(poolGBTCBalanceAfterAfterClaim);
+
+        // Geist are vested exit from liqudity has penalty 50% of rewards
+        IMultiFeeDistribution(GEIST_FEE_DISTRUBUTOR).exit();
+
+        uint256 rewardsAmount = IERC20Upgradeable(GEIST_TOKEN).balanceOf(address(this));
         if (rewardsAmount == 0) {
             return harvested;
         }
 
-        // Swap Rewards in Spookyswap
+        // Swap Rewards (Geist) in Spookyswap
 
-        address[] memory path = new address[](2);
+        address[] memory path = new address[](3);
         path[0] = GEIST_TOKEN;
-        path[1] = want;
+        path[1] = WFTM;
+        path[2] = want;
 
-        // TODO: fix max amount chances of FR
-        IV2SwapRouter(ROUTER).swapExactTokensForTokens(rewardsAmount, 0, path, address(this));
-
-        uint256 earned = IERC20Upgradeable(want).balanceOf(address(this)).sub(_before);
+        IV2SwapRouter(ROUTER).swapExactTokensForTokens(rewardsAmount, 0, path, address(this), now);
+        harvested[0].amount = IERC20Upgradeable(want).balanceOf(address(this));
 
         // keep this to get paid!
-        _reportToVault(earned);
+        _reportToVault(harvested[0].amount);
 
         return harvested;
     }
@@ -137,14 +146,14 @@ contract MyStrategy is BaseStrategy {
         tended = new TokenAmount[](3);
         tended[0] = TokenAmount(want, 0);
         tended[1] = TokenAmount(BADGER, 0);
-        tended[1] = TokenAmount(BADGER, 0);
+        tended[1] = TokenAmount(GBTC, 0);
 
         return tended;
     }
 
     /// @dev Return the balance (in want) that the strategy has invested somewhere
     function balanceOfPool() public view override returns (uint256) {
-        return IERC20Upgradeable(gBTC).balanceOf(address(this));
+        return IERC20Upgradeable(GBTC).balanceOf(address(this));
     }
 
     /// @dev Return the balance of rewards that the strategy has accrued
@@ -154,7 +163,7 @@ contract MyStrategy is BaseStrategy {
         rewards = new TokenAmount[](2);
         rewards[0] = TokenAmount(want, 0);
         rewards[1] = TokenAmount(BADGER, 0);
-        rewards[1] = TokenAmount(gBTC, 0);
+        rewards[1] = TokenAmount(GBTC, 0);
         rewards[1] = TokenAmount(reward, 0);
         return rewards;
     }
